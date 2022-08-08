@@ -11,8 +11,7 @@ import pandas as pd
 import urllib3
 import requests
 
-url_base = "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey="
-url_scrape = url_base + str(1)
+url_scrape = "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=3"
 
 webpage = requests.get(url_scrape)
 
