@@ -124,9 +124,9 @@ create.table <- function(url.scrape, path.data) {
   cced.id <- regmatches(html.page, gregexpr(pattern = "(?<=<dfn>).*?(?=</dfn>)", perl = TRUE, text = html.page))[[1]]
   tbl.evid[, CCEdID := list(cced.id)]
   ## create final data.table and write to folder
-  tbl.filename <- paste0(path.data, .Platform$file.sep, "cced_id_", cced.id)
+  tbl.filename <- paste0(path.data, .Platform$file.sep, "cced_id_", cced.id, ".csv")
   cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-  cat(paste0("Write csv as ", tbl.filename, "\n"))
+  cat(paste0("Write data as ", tbl.filename, "\n"))
   cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
   tbl.write <- as.data.table(cbind(County = tbl.smry$County,
                                    Diocese_Juristiction = tbl.smry$`Diocese(Jurisdiction)`,
@@ -147,7 +147,7 @@ url.base <- "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?
 #html.pages <- paste0(url.base, html.pages)
 #url.scrape <- html.pages[1]
 ## seq(2,250000)
-for (key in seq(440,500)) {
+for (key in seq(3,400)) {
   url.scrape <- paste0(url.base, key)
   create.table(url.scrape = url.scrape, path.data = path.data)
 }

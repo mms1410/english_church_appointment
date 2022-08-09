@@ -87,3 +87,29 @@ tbl.write <- as.data.table(cbind(County = tbl.smry$County,
                                  Office = tbl.evid$Office))
 fwrite(tbl.write, file = paste0(path.data, .Platform$file.sep, "cced_id_", cced.id))
 ################################################################################
+tbl.final <- data.table(County = factor(),
+                        Diocese_Juristiction = factor(),
+                        Diocese_Geographic = factor(),
+                        Location_Type = factor(),
+                        Location_Name = factor(),
+                        CCEd_ID = integer(),
+                        Name = factor(),
+                        Person_ID = integer(),
+                        Year = integer(),
+                        Type = factor(),
+                        Office = factor())
+
+dots <- list(archive.path = paste0(path.data, .Platform$file.sep, "archive"))
+
+
+list.files(path.data, full.names = TRUE)
+file.pattern
+
+for (file in list.files(path.data, full.names = TRUE, pattern = file.pattern)) {
+  cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+  cat(paste0(file, "\n"))
+  cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+}
+length(list.files(path.turds))
+
+       
