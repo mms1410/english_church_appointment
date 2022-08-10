@@ -11,7 +11,7 @@ library(XML)
 library(data.table)
 library(checkmate)
 ##
-scrape.html <- function(url, path.data, file.extension = "csv", ...) {
+scrape.html <- function(url, path.data, file.extension = "csv", verbose = TRUE, logging = FALSE, ...) {
   #'
   #'
   #' @param url url of website
@@ -23,11 +23,39 @@ scrape.html <- function(url, path.data, file.extension = "csv", ...) {
   assertCharacter(url)
   assertDirectoryExists(path.data)
   assertCharacter(path.data)
-  assertChoice(format, choices = c(".csv", "csv"))
+  assertChoice(file.extension, choices = c(".csv", "csv"))
   ## get webpage raw data
   page <- RCurl::getURL(url)
   page.trim <- gsub(pattern = "[[:space:]]", x = page, replacement = "", perl = TRUE)
   tbls <- XML::readHTMLTable(page)
+  ##
+  if (!grepl(pattern = "<li><h3>Evidence</h3>", x = page.trim)) {
+    if (verbose) {
+      warning(paste0("URL ", url, " does not contain 3rd level 'Evidence' list entry.\n"))
+      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+      #cat(paste0("URL ", url, " does not contain 3rd level 'Evidence' list entry.\n"))
+      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+    }
+    return(NULL)
+  }
+  if( !grepl(pattern = "<li><h3>Summary</h3>", x = page.trim)) {
+    if (verbose) {
+      warning(paste0("URL ", url, " does not contain 3rd level 'Summary' list entry.\n"))
+      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+      #cat(paste0("URL ", url, " does not contain 3rd level 'Summary' list entry.\n"))
+      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+    }
+    return(NULL)
+  }
+  if (!grepl(pattern = "<li><h3>History</h3>", x = page.trim)) {
+    if (verbose) {
+      warning(paste0("URL ", url, " does not contain 3rd level 'History' list entry.\n"))
+      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+      #cat(paste0("URL ", url, " does not contain 3rd level 'History' list entry.\n"))
+      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+    }
+    return(NULL)
+  }
   ## get missing information not contained in tables but in summary list
   pattern.summary <- "<h3>Summary</h3>.*?</ul>"
   smry.list <- regmatches(page.trim, gregexpr(pattern = pattern.summary, text = page.trim))[[1]]
@@ -40,6 +68,8 @@ scrape.html <- function(url, path.data, file.extension = "csv", ...) {
   smry.data <- sapply(smry.list, "[[", 2)
   tbl.smry <- as.data.table(matrix(smry.data, nrow = 1))
   colnames(tbl.smry) <- smry.names
+  colnames(tbl.smry) <- gsub(pattern = "[[:space:]]", replacement = "_", x = colnames(tbl.smry), perl = TRUE)
+  tbl.smry <- tbl.smry[, .(County, `Diocese_(Jurisdiction)`, `Diocese_(Jurisdiction)`)]
   ## get missing information not contained as data cells but in tag references
   location <- regmatches(page.trim, gregexpr(pattern = "(?<=Location:).*?(?=</h1>)", text = page.trim, perl = TRUE))[[1]]
   location.name <- regmatches(location, gregexpr(pattern = "(?<=:).*$", text = location, perl = TRUE))[[1]]
@@ -50,25 +80,31 @@ scrape.html <- function(url, path.data, file.extension = "csv", ...) {
   person.id <- data.table(Person_ID = person.id)
   cced.id <- regmatches(page.trim, gregexpr(pattern = "(?<=<dfn>).*?(?=</dfn>)", perl = TRUE, text = page.trim))[[1]]
   cced.id <- data.table(CCEd_ID = cced.id)
-  # county_	diocesejurisdiction__	diocesegeographic__	parish	cced_id	names	personid	year	type	office	full	inlocation_
   ### create final data.table
-  tbl <- as.data.table(cbind(tbls[[1]], tbls[[2]]))
-  tbl.names <- names(tbl)
-  tbl.names <- gsub(pattern = "[[:space:]]", replacement = "_", x = tbl.names, perl = TRUE)
-  colnames(tbl) <- tbl.names
-  tbl <- tbl[, .(CCE_Region, Archdeaconry, Name_as_Recorded, Year, Type, Office)]
+  ## note: tbl.history not nec. one row
+  tbl.history <- as.data.table(tbls[[1]])
+  colnames(tbl.history) <- gsub(pattern = "[[:space:]]", replacement = "_", x = colnames(tbl.history), perl = TRUE)
+  tbl.history <- tbl.history[, .(CCE_Region)]
+  tbl.history <- unique(tbl.history)
+  tbl.evidence <- as.data.table(tbls[[2]])
+  colnames(tbl.evidence) <- gsub(pattern = "[[:space:]]", replacement = "_", x = colnames(tbl.evidence), perl = TRUE)
+  tbl.evidence <- tbl.evidence[, .(Name_as_Recorded, Year, Type, Office)]
+  ### merge all together
   tbl <- as.data.table(cbind(
     tbl.smry,
     location.type,
     location.name,
     cced.id,
-    tbl[, .(Name_as_Recorded, Year, Type, Office)]
+    tbl.history,
+    tbl.evidence
   ))
-  tbl.names <- names(tbl)
-  tbl.names <- gsub(pattern = "[[:space:]]", replacement = "_", x = tbl.names, perl = TRUE)
-  names(tbl) <- tbl.names
-  ## write
+  ### write
   file.extension <- gsub(pattern = "\\.", replacement = "", x = file.extension)  # ensure no dot prefix contained
   filename <- paste0(path.data, .Platform$file.sep, "cced_id_", as.character(cced.id), ".", file.extension)
   fwrite(x = tbl, file = filename )
+  if (verbose) {
+    cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+    cat(paste0("Write data to ", filename, "\n"))
+    cat(paste0(paste0(rep("=", 78), collapse = ""), "\n")) 
+  }
 }
