@@ -6,7 +6,7 @@ library(XML)
 library(data.table)
 library(checkmate)
 ##
-scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose = TRUE, logging = FALSE, write.file = FALSE,  ...) {
+scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose = TRUE, logging = FALSE, write.file = FALSE,  path.log = NULL, ...) {
   #' Either return scraped data as data.table or write data into specified folder.
   #'
   #'
@@ -20,45 +20,65 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
   # TODO: find way to avoid return(NULL) and better error handling
   ## some small checks
   assertCharacter(url)
+  assertFlag(verbose)
+  assertFlag(logging)
+  assertFlag(write.file)
+  assertChoice(file.extension, choices = c(".csv", "csv"))
   if (write.file) {
     assertCharacter(path.data)
     assertDirectoryExists(path.data)
   }
-  assertChoice(file.extension, choices = c(".csv", "csv"))
+  if (logging) {
+    assertCharacter(path.log)
+    assertDirectoryExists(path.log)
+  }
   ## get webpage raw data
   page <- RCurl::getURL(url)
   page.trim <- gsub(pattern = "[[:space:]]", x = page, replacement = "", perl = TRUE)
   tbls <- XML::readHTMLTable(page)
   ## check tables
   if (!grepl(pattern = "<li><h3>Evidence</h3>", x = page.trim)) {
+    msg <- paste0("URL ", url, " does not contain 3rd level 'Evidence' list entry.\n")
     if (verbose) {
-      warning(paste0("URL ", url, " does not contain 3rd level 'Evidence' list entry.\n"))
+      warning(msg)
     }
     return(NULL)
   }
   if( !grepl(pattern = "<li><h3>Summary</h3>", x = page.trim)) {
+    msg <- paste0("URL ", url, " does not contain 3rd level 'Summary' list entry.\n")
     if (verbose) {
-      warning(paste0("URL ", url, " does not contain 3rd level 'Summary' list entry.\n"))
+      warning(msg)
     }
     return(NULL)
   }
   if (!grepl(pattern = "<li><h3>History</h3>", x = page.trim)) {
+    msg <- paste0("URL ", url, " does not contain 3rd level 'History' list entry.\n")
     if (verbose) {
-      warning(paste0("URL ", url, " does not contain 3rd level 'History' list entry.\n"))
+      warning(msg)
     }
     return(NULL)
   }
   ## check County and Diocese
   if (!grepl(pattern = "<li><label>County:", x = page.trim)) {
+    msg <- paste0("URL ", url, " does not County list istem.")
    if(verbose){
-     warning(paste0("URL ", url, " does not County list istem."))
-   } 
+     warning(msg)
+   }
+    return(NULL)
   }
   if (!grepl(pattern = "<li><label>Diocese.*?(Jurisdiction)", x = page.trim)) {
-    warning(paste0("URL ", url, " does not Diocese (Jurisdiction) list istem."))
+    msg <- paste0("URL ", url, " does not Diocese (Jurisdiction) list istem.")
+    if (verbose) {
+      warning(msg)
+    }
+    return(NULL)
   }
   if(!grepl(pattern = "<li><label>Diocese.*?(Geographic)", x = page.trim)) {
-    warning(paste0("URL ", url, " does not Diocese (Geographic) list istem."))
+    msg <- paste0("URL ", url, " does not Diocese (Geographic) list istem.")
+    if (verbose) {
+      warning(msg)
+    }
+    return(NULL)
   }
   ## get missing information not contained in tables but in summary list
   pattern.summary <- "<h3>Summary</h3>.*?</ul>"
