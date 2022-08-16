@@ -1,60 +1,64 @@
 ################################################################################
-# this script was written on debian bullseye with TLS protocol version 1.2.
-# the webpage 'https://theclergydatabase.org.uk' does not support TLS v. 1.2 or higher.
-# If open-ssl is used for protocol encrytion the SECLEVEL parameter might (temporary) be set 
-# from 2 to 1. On debian (and most likely on other UNIX architectures) this might be found in the corresponding
-# config file, see: /etc/ssl/openssl.cnf [from command line or 'system' command in R: cat /etc/ssl/openssl.cnf | grep DEFAULT@SECLEVEL"]
-################################################################################
+#
 ################################################################################
 library(RCurl)
 library(XML)
 library(data.table)
 library(checkmate)
 ##
-scrape.html <- function(url, path.data, file.extension = "csv", verbose = TRUE, logging = FALSE, ...) {
+scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose = TRUE, logging = FALSE, write.file = FALSE,  ...) {
+  #' Either return scraped data as data.table or write data into specified folder.
   #'
   #'
   #' @param url url of website
   #' @param path.data folder in which data is written
   #' @param file.extension format of data to write
+  #' @param verbose
+  #' @param logging
+  #' @param write.file
   #'
-  #'
+  # TODO: find way to avoid return(NULL) and better error handling
   ## some small checks
   assertCharacter(url)
-  assertDirectoryExists(path.data)
-  assertCharacter(path.data)
+  if (write.file) {
+    assertCharacter(path.data)
+    assertDirectoryExists(path.data)
+  }
   assertChoice(file.extension, choices = c(".csv", "csv"))
   ## get webpage raw data
   page <- RCurl::getURL(url)
   page.trim <- gsub(pattern = "[[:space:]]", x = page, replacement = "", perl = TRUE)
   tbls <- XML::readHTMLTable(page)
-  ##
+  ## check tables
   if (!grepl(pattern = "<li><h3>Evidence</h3>", x = page.trim)) {
     if (verbose) {
       warning(paste0("URL ", url, " does not contain 3rd level 'Evidence' list entry.\n"))
-      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-      #cat(paste0("URL ", url, " does not contain 3rd level 'Evidence' list entry.\n"))
-      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
     }
     return(NULL)
   }
   if( !grepl(pattern = "<li><h3>Summary</h3>", x = page.trim)) {
     if (verbose) {
       warning(paste0("URL ", url, " does not contain 3rd level 'Summary' list entry.\n"))
-      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-      #cat(paste0("URL ", url, " does not contain 3rd level 'Summary' list entry.\n"))
-      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
     }
     return(NULL)
   }
   if (!grepl(pattern = "<li><h3>History</h3>", x = page.trim)) {
     if (verbose) {
       warning(paste0("URL ", url, " does not contain 3rd level 'History' list entry.\n"))
-      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-      #cat(paste0("URL ", url, " does not contain 3rd level 'History' list entry.\n"))
-      #cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
     }
     return(NULL)
+  }
+  ## check County and Diocese
+  if (!grepl(pattern = "<li><label>County:", x = page.trim)) {
+   if(verbose){
+     warning(paste0("URL ", url, " does not County list istem."))
+   } 
+  }
+  if (!grepl(pattern = "<li><label>Diocese.*?(Jurisdiction)", x = page.trim)) {
+    warning(paste0("URL ", url, " does not Diocese (Jurisdiction) list istem."))
+  }
+  if(!grepl(pattern = "<li><label>Diocese.*?(Geographic)", x = page.trim)) {
+    warning(paste0("URL ", url, " does not Diocese (Geographic) list istem."))
   }
   ## get missing information not contained in tables but in summary list
   pattern.summary <- "<h3>Summary</h3>.*?</ul>"
@@ -101,10 +105,15 @@ scrape.html <- function(url, path.data, file.extension = "csv", verbose = TRUE, 
   ### write
   file.extension <- gsub(pattern = "\\.", replacement = "", x = file.extension)  # ensure no dot prefix contained
   filename <- paste0(path.data, .Platform$file.sep, "cced_id_", as.character(cced.id), ".", file.extension)
-  fwrite(x = tbl, file = filename )
-  if (verbose) {
-    cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-    cat(paste0("Write data to ", filename, "\n"))
-    cat(paste0(paste0(rep("=", 78), collapse = ""), "\n")) 
+  if (write.file){
+    fwrite(x = tbl, file = filename )
+    if (verbose) {
+      cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+      cat(paste0("Write data to ", filename, "\n"))
+      cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+      return(NULL)
+    }
+  } else {
+    return(tbl)
   }
 }

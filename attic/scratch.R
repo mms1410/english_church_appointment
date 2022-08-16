@@ -263,5 +263,5 @@ for (file in list.files(path.data, full.names = TRUE, pattern = file.pattern)) {
   cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
 }
 length(list.files(path.turds))
-
-       
+################################################################################
+data <- haven::read_dta(file.choose())
