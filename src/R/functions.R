@@ -6,109 +6,48 @@ library(XML)
 library(data.table)
 library(checkmate)
 ##
-##
-scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose = TRUE, logging = FALSE, write.file = FALSE,  file.log = NULL) {
-  #' Either return scraped data as data.table or write data into specified folder.
+scrape.html <- function(url) {
   #'
   #'
   #' @param url url of website
-  #' @param path.data folder in which data is written
-  #' @param file.extension format of data to write
-  #' @param verbose
-  #' @param logging
-  #' @param write.file
-  #' @param file.log
   #'
-  # TODO: find way to avoid return(NULL) and better error handling
-  #       check column names NA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ## some small checks
   assertCharacter(url)
-  assertFlag(verbose)
-  assertFlag(logging)
-  assertFlag(write.file)
-  assertChoice(file.extension, choices = c(".csv", "csv"))
-  if (write.file) {
-    assertCharacter(path.data)
-    assertDirectoryExists(path.data)
-  }
-  if (logging) {
-    assertCharacter(file.log)
-    assertFileExists(file.log)
-    ## create connection to log file, variable file.log not char anymore
-    #file.log <- file(file.log)
-  }
   loc.key <- regmatches(url, regexpr(pattern = "[0-9]*$", text  = url, perl = TRUE))
   ## get webpage raw data
   page <- RCurl::getURL(url)
   page.trim <- gsub(pattern = "[[:space:]]", x = page, replacement = "", perl = TRUE)
+  ## check connection
+  if (grepl(pattern = "httpstatus500", x = page.trim, ignore.case = TRUE)) {
+    msg <- paste0("URL ", url, " request resulted in 500 Internal Server Error.\n")
+    warning(msg)
+  }
   tbls <- XML::readHTMLTable(page)
   ## check tables
   if (!grepl(pattern = "<li><h3>Evidence</h3>", x = page.trim)) {
     msg <- paste0("URL ", url, " does not contain 3rd level 'Evidence' list entry.\n")
     warning(msg)
-    #if (verbose) {
-    #  warning(msg)
-    #}
-    #if (logging) {
-    #  cat(msg, file = file.log,append = TRUE)
-    #}
-    return(NULL)
   }
   if( !grepl(pattern = "<li><h3>Summary</h3>", x = page.trim)) {
     msg <- paste0("URL ", url, " does not contain 3rd level 'Summary' list entry.\n")
     warning(msg)
-    #if (verbose) {
-    #  warning(msg)
-    #}
-    #if (logging) {
-    #  cat(msg, file = file.log,append = TRUE)
-    #}
-    return(NULL)
   }
   if (!grepl(pattern = "<li><h3>History</h3>", x = page.trim)) {
     msg <- paste0("URL ", url, " does not contain 3rd level 'History' list entry.\n")
     warning(msg)
-    #if (verbose) {
-    #  warning(msg)
-    #}
-    #if (logging) {
-    #  cat(msg, file = file.log,append = TRUE)
-    #}
-    return(NULL)
   }
   ## check County and Diocese
   if (!grepl(pattern = "<li><label>County:", x = page.trim)) {
-    msg <- paste0("URL ", url, " does not contain County list istem.")
+    msg <- paste0("URL ", url, " does not contain County list istem.\n")
     warning(msg)
-    #if(verbose){
-    #   warning(msg)
-    # }
-    #if (logging) {
-    #  cat(msg, file = file.log, append = TRUE)
-    #}
-    return(NULL)
   }
   if (!grepl(pattern = "<li><label>Diocese.*?(Jurisdiction)", x = page.trim)) {
-    msg <- paste0("URL ", url, " does not contain Diocese (Jurisdiction) list istem.")
+    msg <- paste0("URL ", url, " does not contain Diocese (Jurisdiction) list istem.\n")
     waring(msg)
-    #if (verbose) {
-    #  warning(msg)
-    #}
-    #if (logging) {
-    #  cat(msg, file = file.log, append = TRUE)
-    #}
-    return(NULL)
   }
   if(!grepl(pattern = "<li><label>Diocese.*?(Geographic)", x = page.trim)) {
-    msg <- paste0("URL ", url, " does not contain Diocese (Geographic) list istem.")
+    msg <- paste0("URL ", url, " does not contain Diocese (Geographic) list istem.\n")
     warning(msg)
-    #if (verbose) {
-    #  warning(msg)
-    #}
-    #if (logging) {
-    #  cat(msg, file = file.log, append = TRUE)
-    #}
-    return(NULL)
   }
   ## get missing information not contained in tables but in summary list
   pattern.summary <- "<h3>Summary</h3>.*?</ul>"
@@ -155,49 +94,38 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
   ## tidy up
   cols.char <- names(lapply(X = tbl, FUN = typeof) == "character")
   tbl[, (cols.char) := lapply(X = .SD, FUN = function(column){gsub(x = column, pattern = "[[:space:]]{2,}", replacement = "", perl = TRUE)}), .SDcols = cols.char]
-  ### write
-  #file.extension <- gsub(pattern = "\\.", replacement = "", x = file.extension)  # ensure no dot prefix contained
-  #filename <- paste0(path.data, .Platform$file.sep, "cced_id_", as.character(cced.id), ".", file.extension)
-  #if (write.file){
-    #fwrite(x = tbl, file = filename )
-    #if (verbose) {
-    #  cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-    #  cat(paste0("Write data to ", filename, "\n"))
-    #  cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-    #  return(NULL)
-    #}
-    #if (logging) {
-    #  cat(paste0("Write data to ", filename, "\n"), file = file.log, append = TRUE)
-    #}
-  #} else {
-    #if  (verbose) {
-    #  cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-    #  cat(paste0("Created data.table with loc key  ", loc.key, "\n"))
-    #  cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
-    #}
-    #if (logging) {
-    #  cat(paste0("Added data.table with loc key ", loc.key, "\n"), file = file.log, append = TRUE)
-    #}
-  #  return(tbl)
-  #}
+  ## return data.table
   tbl
 }
-scrape.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=", path.data = NULL, file.extension = "csv", verbose = TRUE, logging = FALSE, write.file = FALSE,  path.log = NULL) {
+assemble.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=", file.name = NULL, file.extension = "csv", path.data = NULL,   path.log = NULL, write.file = FALSE, verbose = TRUE, logging = FALSE) {
   #'
   #' @param idx.seq
   #' @param url.base
-  #' @param file.exxtension
-  #' @param verbose 
-  #' @param logging
-  #' @param write.file
+  #' @param file.name
+  #' @param file.extension
+  #' @param path.data
   #' @param path.log
-  #'
-  #'
-  #'
-  #'
-  #'
-  #
-  
+  #' @param write.file
+  #' @param verbose
+  #' @param logging
+  #' 
+  # TODO:
+  #  file.name file extension overlap
+  assertFlag(verbose)
+  assertFlag(logging)
+  assertFlag(write.file)
+  if (write.file) {
+    assertChoice(file.extension, choices = c(".csv", "csv"))
+    assertCharacter(path.data)
+    assertDirectoryExists(path.data)
+  }
+  if (logging) {
+    assertDirectoryExists(path.log)
+  }
+  if (write.file) {
+    assertCharacter(file.name, any.missing = FALSE, len = 1)
+  }
+  if (!grepl(pattern = "^\\.", x = file.extension)) file.extension <- paste0(".", file.extension)
   tbl.merge <- NULL
   if (logging) {
     file.log <- gsub(x = Sys.time(), pattern = "[[:space:]]|:", replacement = "-", perl = TRUE)
@@ -207,13 +135,13 @@ scrape.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/js
   for (loc.key in idx.seq) {
     url <- paste0(url.base, loc.key)
     tryCatch({
-      tbl <- scrape.html(url = url, path.data = path.data, file.extension = file.extension, verbose = verbose, logging = logging, write.file = write.file, file.log = file.log)
+      tbl <- scrape.html(url = url)
       tbl.merge <- data.table(rbind(tbl.merge, tbl))
-      if (verbose) cat(paste0("Appended data table with ", nrow(tbl), " new rows at loc key ", loc.key, "\n"))
-      if (logging) cat(paste0("Appended data table with ", nrow(tbl), " new rows at loc key ", loc.key, "\n"), file = file.log, append = TRUE)
+      if (verbose) cat(paste0("Appended data table with ", nrow(tbl), "\t", "new rows at loc key ", loc.key, "\n"))
+      if (logging) cat(paste0("Appended data table with ", nrow(tbl), "\t", "new rows at loc key ", loc.key, "\n"), file = file.log, append = TRUE)
     },
     error = function(e) {
-      msg <- paste0("Unexpected error occured at loc.key ", loc.key, ".\n")
+      msg <- paste0("Unexpected error occured at loc.key ", loc.key, ": ", e$message)
       message(msg)
       if (logging) cat(msg, file = file.log, append = TRUE)
     },
@@ -223,5 +151,11 @@ scrape.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/js
        if (logging) cat(msg, file = file.log, append = TRUE)
     })
   }
-  if(!write.file) return(tbl.merge)
+  if (write.file) {
+    fwrite(x = tbl.merge, file = paste0(path.data, .Platform$file.sep, file.name, file.extension))
+    if (logging) cat(paste0("Data written to: ", path.data, .Platform$file.sep, file.name, file.extension, "\n"), file = file.log, append = TRUE)
+    if (verbose) cat(paste0("Data written to: ", path.data, .Platform$file.sep, file.name, file.extension, "\n"))
+  } else {
+    return(tbl)
+  }
 }

@@ -265,3 +265,42 @@ for (file in list.files(path.data, full.names = TRUE, pattern = file.pattern)) {
 length(list.files(path.turds))
 ################################################################################
 data <- haven::read_dta(file.choose())
+################################################################################
+gsub(x = data$Name_as_Recorded, pattern = "[[:space:]]{2,}", replacement = "", perl = TRUE)
+char.cols <- names(lapply(X = data, FUN = typeof) == "character")
+char.cols
+gsub(x = Sys.time(), pattern = "[[:space:]]|:", replacement = "-", perl = TRUE)
+################################################################################
+
+url.base <- "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey="
+tbl.merge <- NULL
+for (key in seq(3,200)) {  # 50000, 440, 452
+  url <- paste0(url.base, key)
+  tryCatch({
+    tbl <- scrape.html(url = url, write.file = FALSE)
+    tbl.merge <- data.table(rbind(tbl.merge, tbl))
+  },
+  error = function(e) {
+    message("Unexpecter error occured.\n")
+    print(e)
+  },
+  warning = function(w) {
+    print(w)
+  })
+}
+fwrite(tbl.merge, paste0(path.data, .Platform$file.sep, "data_english_church.csv"))
+## key=14 => two histories
+# 150, 193
+################################################################################
+data <- fread(paste0(path.data, .Platform$file.sep, "data_english_church.csv"))
+clean.folder <- function(path, ending = ".txt") {
+  assertCharacter(ending)
+  assertCharacter(path)
+  assertDirectoryExists(path)
+  files <- list.files(path, pattern = ending)
+  files <- paste0(path, .Platform$file.sep, files)
+  file.remove(files)
+}
+################################################################################
+# 4285 
+url <- "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4285"
