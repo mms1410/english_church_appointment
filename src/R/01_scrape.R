@@ -6,7 +6,8 @@ library(XML)
 library(data.table)
 library(checkmate)
 ##
-scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose = TRUE, logging = FALSE, write.file = FALSE,  path.log = NULL, ...) {
+##
+scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose = TRUE, logging = FALSE, write.file = FALSE,  file.log = NULL) {
   #' Either return scraped data as data.table or write data into specified folder.
   #'
   #'
@@ -16,8 +17,10 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
   #' @param verbose
   #' @param logging
   #' @param write.file
+  #' @param file.log
   #'
   # TODO: find way to avoid return(NULL) and better error handling
+  #       check column names NA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ## some small checks
   assertCharacter(url)
   assertFlag(verbose)
@@ -29,9 +32,12 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
     assertDirectoryExists(path.data)
   }
   if (logging) {
-    assertCharacter(path.log)
-    assertDirectoryExists(path.log)
+    assertCharacter(file.log)
+    assertFileExists(file.log)
+    ## create connection to log file, variable file.log not char anymore
+    #file.log <- file(file.log)
   }
+  loc.key <- regmatches(url, regexpr(pattern = "[0-9]*$", text  = url, perl = TRUE))
   ## get webpage raw data
   page <- RCurl::getURL(url)
   page.trim <- gsub(pattern = "[[:space:]]", x = page, replacement = "", perl = TRUE)
@@ -42,6 +48,9 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
     if (verbose) {
       warning(msg)
     }
+    #if (logging) {
+    #  cat(msg, file = file.log,append = TRUE)
+    #}
     return(NULL)
   }
   if( !grepl(pattern = "<li><h3>Summary</h3>", x = page.trim)) {
@@ -49,6 +58,9 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
     if (verbose) {
       warning(msg)
     }
+    #if (logging) {
+    #  cat(msg, file = file.log,append = TRUE)
+    #}
     return(NULL)
   }
   if (!grepl(pattern = "<li><h3>History</h3>", x = page.trim)) {
@@ -56,28 +68,40 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
     if (verbose) {
       warning(msg)
     }
+    #if (logging) {
+    #  cat(msg, file = file.log,append = TRUE)
+    #}
     return(NULL)
   }
   ## check County and Diocese
   if (!grepl(pattern = "<li><label>County:", x = page.trim)) {
-    msg <- paste0("URL ", url, " does not County list istem.")
+    msg <- paste0("URL ", url, " does not contain County list istem.")
    if(verbose){
      warning(msg)
    }
+    #if (logging) {
+    #  cat(msg, file = file.log, append = TRUE)
+    #}
     return(NULL)
   }
   if (!grepl(pattern = "<li><label>Diocese.*?(Jurisdiction)", x = page.trim)) {
-    msg <- paste0("URL ", url, " does not Diocese (Jurisdiction) list istem.")
+    msg <- paste0("URL ", url, " does not contain Diocese (Jurisdiction) list istem.")
     if (verbose) {
       warning(msg)
     }
+    #if (logging) {
+    #  cat(msg, file = file.log, append = TRUE)
+    #}
     return(NULL)
   }
   if(!grepl(pattern = "<li><label>Diocese.*?(Geographic)", x = page.trim)) {
-    msg <- paste0("URL ", url, " does not Diocese (Geographic) list istem.")
+    msg <- paste0("URL ", url, " does not contain Diocese (Geographic) list istem.")
     if (verbose) {
       warning(msg)
     }
+    #if (logging) {
+    #  cat(msg, file = file.log, append = TRUE)
+    #}
     return(NULL)
   }
   ## get missing information not contained in tables but in summary list
@@ -93,7 +117,7 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
   tbl.smry <- as.data.table(matrix(smry.data, nrow = 1))
   colnames(tbl.smry) <- smry.names
   colnames(tbl.smry) <- gsub(pattern = "[[:space:]]", replacement = "_", x = colnames(tbl.smry), perl = TRUE)
-  tbl.smry <- tbl.smry[, .(County, `Diocese_(Jurisdiction)`, `Diocese_(Jurisdiction)`)]
+  tbl.smry <- tbl.smry[, .(County, `Diocese_(Jurisdiction)`, `Diocese_(Geographic)`)]
   ## get missing information not contained as data cells but in tag references
   location <- regmatches(page.trim, gregexpr(pattern = "(?<=Location:).*?(?=</h1>)", text = page.trim, perl = TRUE))[[1]]
   location.name <- regmatches(location, gregexpr(pattern = "(?<=:).*$", text = location, perl = TRUE))[[1]]
@@ -122,6 +146,9 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
     tbl.history,
     tbl.evidence
   ))
+  ## tidy up
+  cols.char <- names(lapply(X = tbl, FUN = typeof) == "character")
+  tbl[, (cols.char) := lapply(X = .SD, FUN = function(column){gsub(x = column, pattern = "[[:space:]]{2,}", replacement = "", perl = TRUE)}), .SDcols = cols.char]
   ### write
   file.extension <- gsub(pattern = "\\.", replacement = "", x = file.extension)  # ensure no dot prefix contained
   filename <- paste0(path.data, .Platform$file.sep, "cced_id_", as.character(cced.id), ".", file.extension)
@@ -133,7 +160,61 @@ scrape.html <- function(url, path.data = NULL, file.extension = "csv", verbose =
       cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
       return(NULL)
     }
+    if (logging) {
+      cat(paste0("Write data to ", filename, "\n"), file = file.log, append = TRUE)
+    }
   } else {
+    if  (verbose) {
+      cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+      cat(paste0("Created data.table with loc key  ", loc.key, "\n"))
+      cat(paste0(paste0(rep("=", 78), collapse = ""), "\n"))
+    }
+    if (logging) {
+      cat(paste0("Added data.table with loc key ", loc.key, "\n"), file = file.log, append = TRUE)
+    }
     return(tbl)
   }
+}
+scrape.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=", path.data = NULL, file.extension = "csv", verbose = TRUE, logging = FALSE, write.file = FALSE,  path.log = NULL) {
+  #'
+  #' @param idx.seq
+  #' @param url.base
+  #' @param file.exxtension
+  #' @param verbose 
+  #' @param logging
+  #' @param write.file
+  #' @param path.log
+  #'
+  #'
+  #'
+  #'
+  #'
+  #
+  
+  tbl.merge <- NULL
+  if (logging) {
+    file.log <- gsub(x = Sys.time(), pattern = "[[:space:]]|:", replacement = "-", perl = TRUE)
+    file.log <- paste0(path.log, .Platform$file.sep, "log_", file.log, ".txt")
+    system(command = paste0("touch ", file.log))
+  }
+  for (loc.key in idx.seq) {
+    url <- paste0(url.base, loc.key)
+    tryCatch({
+      tbl <- scrape.html(url = url, path.data = path.data, file.extension = file.extension, verbose = verbose, logging = logging, write.file = write.file, file.log = file.log)
+      tbl.merge <- data.table(rbind(tbl.merge, tbl))
+    },
+    error = function(e) {
+      msg <- paste0("Unexpected error occured at loc.key ", loc.key, ".\n")
+      message(msg)
+      if (logging) {
+        cat(msg, file = file.log, append = TRUE)
+      }
+      print(e)
+    },
+    warning = function(w) {
+       cat("Outer warning triggered. \n")
+       cat(w$message)
+    })
+  }
+  if(!write.file) return(tbl.merge)
 }
