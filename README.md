@@ -1,4 +1,7 @@
-# Walkthrough
+# Project structure
 
-Main part of this project is a web scraper collecting data on church appointments collected on the website of (Clergery of the Church of England)[https://theclergydatabase.org.uk/].
+- The main part of this project consist of a src folder containing the code used.
+- The data folder contains the scraped data.
+- The assets folder is used to output plots.
+- The log folder contains log files (if any are created).
 
