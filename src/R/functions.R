@@ -7,7 +7,7 @@ library(data.table)
 library(checkmate)
 ##
 scrape.html <- function(url) {
-  #'
+  #' This function scrapes data from given url and returns a data.table object of scraped data.
   #'
   #' @param url url of website
   #'
@@ -97,20 +97,19 @@ scrape.html <- function(url) {
   ## return data.table
   tbl
 }
-assemble.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=", file.name = NULL, file.extension = "csv", path.data = NULL,   path.log = NULL, write.file = FALSE, verbose = TRUE, logging = FALSE) {
+assemble.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=", file.name = NULL, file.extension = "csv",log.name = NULL, path.data = NULL,   path.log = NULL, write.file = FALSE, verbose = TRUE, logging = FALSE) {
+  #' this function successively scrapes webpages based on different locKeys into one data.table that is finally returned to callee or written into file.
   #'
-  #' @param idx.seq
-  #' @param url.base
-  #' @param file.name
-  #' @param file.extension
-  #' @param path.data
-  #' @param path.log
-  #' @param write.file
-  #' @param verbose
-  #' @param logging
+  #' @param idx.seq numeric, index of locKeys
+  #' @param url.base character, url where locKey will be appended
+  #' @param file.name character, name of file in which data is written
+  #' @param file.extension character, file extension of final data file
+  #' @param path.data character, path to folder where data wil be written in
+  #' @param path.log characterr, path to folder where logfiles will be written
+  #' @param write.file boolean, indicating whether table will be written in file (TRUE) or returned to callee (FALSE)
+  #' @param verbose boolean, indicating whether progress should be printed into comand window 
+  #' @param logging boolean, indicating whether a logfile should be created
   #' 
-  # TODO:
-  #  file.name file extension overlap
   assertFlag(verbose)
   assertFlag(logging)
   assertFlag(write.file)
@@ -128,8 +127,12 @@ assemble.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/
   if (!grepl(pattern = "^\\.", x = file.extension)) file.extension <- paste0(".", file.extension)
   tbl.merge <- NULL
   if (logging) {
-    file.log <- gsub(x = Sys.time(), pattern = "[[:space:]]|:", replacement = "-", perl = TRUE)
-    file.log <- paste0(path.log, .Platform$file.sep, "log_", file.log, ".txt")
+    if (is.null(log.name)) {
+      file.log <- gsub(x = Sys.time(), pattern = "[[:space:]]|:", replacement = "-", perl = TRUE)
+      file.log <- paste0(path.log, .Platform$file.sep, "log_", file.log, ".txt")
+    } else {
+      file.log<- paste0(path.log, .Platform$file.sep, log.name, ".txt")
+    }
     system(command = paste0("touch ", file.log))
   }
   for (loc.key in idx.seq) {
@@ -152,10 +155,19 @@ assemble.data <- function(idx.seq, url.base = "https://theclergydatabase.org.uk/
     })
   }
   if (write.file) {
-    fwrite(x = tbl.merge, file = paste0(path.data, .Platform$file.sep, file.name, file.extension))
-    if (logging) cat(paste0("Data written to: ", path.data, .Platform$file.sep, file.name, file.extension, "\n"), file = file.log, append = TRUE)
-    if (verbose) cat(paste0("Data written to: ", path.data, .Platform$file.sep, file.name, file.extension, "\n"))
+    if (!is.null(tbl.merge)){
+      fwrite(x = tbl.merge, file = paste0(path.data, .Platform$file.sep, file.name, file.extension))
+      if (logging) cat(paste0("Data written to: ", path.data, .Platform$file.sep, file.name, file.extension, "\n"), file = file.log, append = TRUE)
+      if (verbose) cat(paste0("Data written to: ", path.data, .Platform$file.sep, file.name, file.extension, "\n"))
+    } else {
+      if (logging) cat("No data generated!\n", file = file.log, append = TRUE)
+      if (verbose) cat("Not data generated!\n") 
+    }
   } else {
-    return(tbl)
+    if(!is.nul(tbl)){
+      return(tbl.merge)
+    } else {
+      return(NULL)
+    }
   }
 }

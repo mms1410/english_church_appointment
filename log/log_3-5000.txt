@@ -4976,7 +4976,7 @@ URL https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=49
 URL https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4981 request resulted in 500 Internal Server Error.
 URL https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4982 request resulted in 500 Internal Server Error.
 URL https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4983 request resulted in 500 Internal Server Error.
-URL https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4984 request resulted in 500 Internal Server Error.
+URL https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4984 does not contain 3rd level 'Evidence' list entry.
 URL https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4985 request resulted in 500 Internal Server Error.
 Appended data table with 98	new rows at loc key 4986
 URL https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4987 does not contain 3rd level 'Evidence' list entry.
@@ -4993,4 +4993,4 @@ Appended data table with 71	new rows at loc key 4997
 Appended data table with 48	new rows at loc key 4998
 Appended data table with 43	new rows at loc key 4999
 Appended data table with 86	new rows at loc key 5000
-Data written to: /home/svenmaurice/05_version_control/01_github/english_church_appointment/data/data-english-church.csv
+Data written to: /home/svenmaurice/05_version_control/01_github/english_church_appointment/data/data-english-church-01.csv

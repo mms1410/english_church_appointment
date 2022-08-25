@@ -304,3 +304,5 @@ clean.folder <- function(path, ending = ".txt") {
 ################################################################################
 # 4285 
 url <- "https://theclergydatabase.org.uk/jsp/locations/DisplayLocation.jsp?locKey=4285"
+
+str(data.web$Year)
