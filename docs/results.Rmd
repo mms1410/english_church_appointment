@@ -1,0 +1,206 @@
+---
+title: "results"
+author: "Sven Maurice Morlock"
+date: "2022-08-26"
+output: pdf_document
+---
+```{r, echo = FALSE, include = FALSE}
+library(data.table)
+library(ggplot2)
+library(maps)
+library(viridis)
+library(lme4)
+library(randomForest)
+library(xgboost)
+```
+
+
+```{r, echo = FALSE, include = FALSE}
+rm(list = ls())
+path.essay <- rstudioapi::getSourceEditorContext()$path  # .../docs/essay.Rmd
+path.base <- dirname(path.essay)  # .../docs
+path.base <- dirname(path.base)  # .../
+path.data <- paste0(path.base, .Platform$file.sep, "data")  # .../data/
+default_theme <- theme_minimal() +
+  theme(text = element_text(family = "Bookman", size = 15)) +
+  theme(panel.grid.major = element_line(color = "grey", size = 0.3)) +
+  theme(axis.line = element_line(color = "black", size = 0.4))
+UK <- subset(map_data("world"), region == "UK")
+################################################################################
+## load data
+data <- fread(paste0(path.data, .Platform$file.sep, "final_data.csv"))
+data <- data[Population != 0]
+data.agg <- data[ , .(Population = sum(Population), Appointments = sum(Appointments)), by = time]
+data.agg[, `:=`(lnPop = log(Population), lnApp = log(Appointments))]
+```
+
+```{r, echo = FALSE}
+idx.train <- sample(seq(nrow(data)), floor(nrow(data) * 0.75))
+data.train <- data[idx.train]
+data.test <- data[-idx.train]
+data.train <- data.train[longitude != 0 & latitude != 0]
+data.test <- data.test[longitude != 0 & latitude != 0]
+X.train <- data.train[ , .(time, C_ID, latitude, longitude, Appointments)]
+X.test <- data.test[ , .(time, C_ID, latitude, longitude, Appointments)]
+y.train <- data.train$Population
+y.test <- data.test$Population
+###############################################################################
+## na check
+# any(is.na(data.test))
+# any(is.na(data.train))
+################################################################################
+model.linear.1 <- lme4::lmer(formula = Population ~ Appointments + (1|C_ID),
+                           data = data, REML = FALSE)
+model.linear.2 <- lme4::lmer(formula = lnPop ~ lnApp + (1|C_ID),
+                             data = data, REML = FALSE)
+## inter class correlation coefficient
+icc.1 <- as.data.table(VarCorr(model.linear.1))[,vcov][1] / sum(as.data.table(VarCorr(model.linear.1))[,vcov])
+icc.2 <- as.data.table(VarCorr(model.linear.2))[,vcov][1] / sum(as.data.table(VarCorr(model.linear.2))[,vcov])
+##
+model.ols.1 <- lm(formula = Population ~ Appointments, data = data)
+model.ols.2 <- lm(formula = lnPop ~ lnApp, data = data)
+## perform (approximate) likelihood ratio test
+anova(model.linear.1, model.ols.1)
+```
+
+The following text contains information on the results contained in the script `main.R`.
+Specifically the relation between church appointments and population in England are analyzed here.
+The following graphic illustrates the population development in England during the time period of 1525 and 1850. The colors correspond to the CCE_Id, a unique identifier of a church parish in England:
+
+```{r, echo = FALSE}
+ggplot(data) +
+  geom_point(aes(x = time, y = Population, color = as.factor(C_ID), alpha = 0.4)) +
+  default_theme +
+  theme(legend.position = "none") +
+  labs(title = "Population", subtitle = "(colored by C_ID)")
+```
+As one can see, especially in the late periods population in England was growing.
+The following graphic shows the development of church appointments during this time span, again colored by the identifier of church parish:
+```{r, echo = FALSE}
+ggplot(data) +
+  geom_point(aes(x = time, y = Appointments, color = as.factor(C_ID), alpha = 0.4)) +
+  default_theme +
+  theme(legend.position = "none") +
+  labs(title = "Number of church appointments", subtitle = "(colored by C_ID)")
+```
+Since the number of church appointments does not show the same development as population does we can look at a scatter plot, containing the logarithmic number of appointments on the y-axis and the logarithmic population number on th x-axis:
+```{r, echo = FALSE}
+ggplot(data = data.agg, aes(x = log(Population), y = log(Appointments))) +
+  geom_point() +
+  geom_line() +
+  stat_smooth(method = "lm", se = FALSE) +
+  labs(title = "Scatterplot (log-)Appointments vs. (log-)Population") +
+  default_theme
+```
+The linear regression line indicates a positive association between population and church appointments.
+The following graphic illustrates the development of population in different regions in England. The depicts the population size:
+```{r, echo = FALSE}
+ggplot() +
+  geom_polygon(data = UK, aes(x = long, y = lat, group = group), fill = "grey", alpha = 0.4) +
+  geom_point(data = data, aes(x = longitude, y = latitude, color = Population)) +
+  scale_size_continuous(range=c(1,12)) +
+  scale_color_viridis(trans="log") +
+  theme_void() + ylim(50,59) + coord_map() +
+  labs(title = "Variation in Population")
+```
+In the following the parish is taken into account as a fixed effect using the `nlme4` package:
+the variable `model.ols.1` is a simple linear regression of Population on Appointments. The variable `model.linear.1` contains a fitted linear model but taking with fixes effects.
+
+The simple ols regression yields the following result:
+```{r, echo = FALSE}
+summary(model.ols.1)
+```
+The fixed effect regression yields:
+
+```{r, echo = FALSE}
+summary(model.linear.1)
+```
+
+The percentage of total variation in the data that can be attributed to the fixed effects is therefore `r icc.1`. So roughly 40 percent.
+Since the simple ols is nested within the fixed effect regression an (approximate) likelihood ratio test can be conducted:
+
+```{r}
+anova(model.linear.1, model.ols.1)
+```
+The corresponding p-value is smaller than any typical significance level, indicating that the fixed effects contribute to a significant extent to the overall data variation given the number of appointments.
+
+Therefore a simple linear regression is used in the following.
+One can ask how well number of church appointments do predict the population in out data. Therefore the data is split into a test and training set.
+Threee models are considered:
+- a simple linear model, model.linear
+- a random forest model, model.rforest
+- a Extreme Gradient Boosting model, model.xgb
+
+```{r, echo = FALSE}
+model.linear <- lm(formula = Population ~ time + C_ID + latitude + longitude + Appointments, data = data.train)
+## RANDOM FOREST
+model.rforest <- randomForest::randomForest(x = X.train, y = y.train,
+                                            ntree = 1000, na.action = "ignore", importance = TRUE)
+var.importance <- importance(model.rforest)
+var.importance <- as.data.table(var.importance, keep.rownames = TRUE)
+colnames(var.importance)[1] <- "Variable"
+```
+
+The following plot shows the feature importance of the variables used in random forest:
+
+```{r, echo = FALSE}
+ggplot() +
+  geom_bar(stat = "identity", aes(x = var.importance[["Variable"]], y = var.importance[["%IncMSE"]]), fill = "blue") +
+  xlab("Variable") +
+  ylab("Variable Importance") +
+  theme("Variable Importance Random Forest") +
+  default_theme
+```
+
+```{r}
+xgb.train <- xgb.DMatrix(data = data.matrix(X.train), label = y.train)
+xgb.test <- xgb.DMatrix(data = data.matrix(X.test), label = y.test)
+model.xgb <- xgb.train(data = xgb.train, max.depth = 3, nrounds = 500, watchlist = list(train=xgb.train, test=xgb.test), verbose = FALSE)
+```
+
+As one can see, taken into account the other variables the number of appointments does contribute relatively less to the prediction of population.
+
+Extreme Gradient Boosting is an Ensemble method that successively trains on weak base learning by adapting the weight to variables that contribute most the the reduction in resulting estimation error. Here regression tree of depth three was chosen. To determine the number of boosting iterations consider the following graphic:
+```{r, echo = FALSE}
+ggplot(as.data.table(model.xgb$evaluation_log)) +
+  geom_line(aes(x = iter, y = train_rmse), color = "orange") +
+  geom_line(aes(x = iter, y = test_rmse), color = "blue") +
+  geom_vline(xintercept = which.min(model.xgb$evaluation_log$test_rmse), color = "red", linetype='dotted') +
+  annotate("text", x = which.min(model.xgb$evaluation_log$test_rmse) - 10 , y = 50, label =as.character(which.min(model.xgb$evaluation_log$test_rmse)) ) +
+  labs(title = "XGBoost train and test error", subtitle = ("blue = test, oange = train")) +
+  ylab("MSE") +
+  xlab("Number Iterations") +
+  default_theme 
+```
+Using 300 hundred iterations the test error is smallest at 298 iterations which is used as hyper parameter in the final xgboost model.
+
+```{r, echo = FALSE}
+model.xgb <- xgb.train(data = xgb.train, max.depth = 3, nrounds = which.min(model.xgb$evaluation_log$test_rmse), watchlist = list(train=xgb.train, test=xgb.test),
+                       verbose = FALSE, objective = "reg:squarederror", eta = 0.25)
+## evaluate models
+pred.linear <- predict(model.linear, X.test)
+pred.rforest <- predict(model.rforest, X.test)
+pred.xgb <- predict(model.xgb, as.matrix(X.test))
+##
+mse.linear <- sum((y.test - pred.linear) ** 2)
+mse.rforest <- sum((y.test - pred.rforest) ** 2)
+mse.xgb <- sum((y.test - pred.xgb) ** 2)
+##
+mae.linear <- sum(abs(y.test - pred.linear))
+mae.rforest <- sum(abs(y.test - pred.rforest))
+mae.xgb <- sum(abs(y.test - pred.xgb))
+
+
+```
+
+The following table shows the results on test data for the three models
+```{r, echo = FALSE}
+tbl <- data.table(cbind(
+  model.linear = rbind("MSE" = mse.linear, "MAE" = mae.linear),
+  model.rforest = rbind("MSE" = mse.rforest, "MAE" = mae.rforest),
+  model.xgb  = rbind("MSE" = mse.xgb, "MAE" = mae.xgb)
+), keep.rownames = TRUE)
+colnames(tbl) <- c("Error", "Linear Model", "Random Forest", "XGB")
+tbl
+```
+

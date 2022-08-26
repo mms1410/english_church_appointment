@@ -1,0 +1,72 @@
+---
+title: "readme"
+author: "Sven Maurice Morlock"
+date: "2022-08-26"
+output: pdf_document
+---
+```{r, echo = FALSE, include = FALSE}
+library(xtable)
+library(data.table)
+library(ggplot2)
+library(maps)
+library(viridis)
+library(lme4)
+library(randomForest)
+library(xgboost)
+```
+
+
+```{r, echo = FALSE, include = FALSE}
+rm(list = ls())
+path.essay <- rstudioapi::getSourceEditorContext()$path  # .../docs/essay.Rmd
+path.base <- dirname(path.essay)  # .../docs
+path.base <- dirname(path.base)  # .../
+path.data <- paste0(path.base, .Platform$file.sep, "data")  # .../data/
+default_theme <- theme_minimal() +
+  theme(text = element_text(family = "Bookman", size = 15)) +
+  theme(panel.grid.major = element_line(color = "grey", size = 0.3)) +
+  theme(axis.line = element_line(color = "black", size = 0.4))
+UK <- subset(map_data("world"), region == "UK")
+################################################################################
+## load data
+data.web <- fread(paste0(path.data, .Platform$file.sep, "data_web.csv"))
+data <- fread(paste0(path.data, .Platform$file.sep, "final_data.csv"))
+data <- data[Population != 0]
+data.agg <- data[ , .(Population = sum(Population), Appointments = sum(Appointments)), by = time]
+data.agg[, `:=`(lnPop = log(Population), lnApp = log(Appointments))]
+```
+
+Aim of this project is to analyze the development of Population size and church appointments in Great Britain during the time period of 1525 until 1850.
+Church appointments are documented in a database that can be accessed at ["https://theclergydatabase.org.uk/jsp/search/index.jsp"](https://theclergydatabase.org.uk/jsp/search/index.jsp). The organizational structe of this project is structured as follows: 
+
+-  data will be written in a data folder.
+- scripts are stored in a separate source file.
+- the web scraper  functions are stored in a script called 'functions.R'.
+- the data is scraped via the script 'write_data.R' and written into the data folder.
+- the final analysis is done in a script called 'main.R' where necessary scripts are run via `source` command.
+
+Some webpages did not contain relevant data. The details can be looked up in the corresponding logfiles which can be accessed  at ['https://github.com/mms1410/english_church_appointment/tree/master/log'](https://github.com/mms1410/english_church_appointment/tree/master/log), as well as the [whole project](https://github.com/mms1410/english_church_appointment).
+
+The scraped web data contains `r nrow(data.web)` observations and is joined with the given population data resulting in `data.table` with `r nrow(data)` observations. Note that for joining the data an 'inner join' was used setting the argument `nonmatch` to zero, so only data where corresponding keys where found where maintained.
+
+In detail the functions used for web scraping are stored in `functions.R` and are structured as follows:
+
+The function `scrape.html.R` takes a string representing a url as input and returns a data.table object consisting of scraped data. First the webpages html content is parsed using R's curl interface written in the package Rcurl. Since scrape.html uses regular expressions, white spaces might at some occasions be unwanted, therefore the variable page.trim contains the parsed html page with removed whitespaces. Note that here the flag perl must be set to TRUE since the regex pattern contains perl syntax that would otherwise not be interpreted appropriately. The webpages requested in this project typically contains the following pattern: There are three major parts, 'Evidence', 'Summary' and 'History'. The data in the 'Evidence' and 'History' section are embedded in an html tabel while the 'Summary' data is simply written as list items. Not all webpages contain the necessary data, therefore some checks are done to  assure certain list items do exists using the fact that list items in html are encoded with the assure certain list items do exists using the fact that list items in html are encoded with the `<li>` tag. Inspecting the html code one can see that 'Evidence', 'Summary' and 'History' are actually represented as third level headers on the webpages encoded in the `<h3>` tag.
+Data contained in the 'Summary' section have to be scraped individually and are refrenced in the 'tbl.smry' variable.
+The regular expressions used to  get the necessary data contains two patterns worthwile to mention: First when I want t find data contained in html tags I want to perform a non greedy search since otherwise closing html tags of the last found "html-tag-section" will be used. The syntax for this is a '?' operator after any quantifier, here the '*' operator which qunatifies to none or arbitrary many times. The '.' character encodes all alphanumerical symbols including whitespaces and special symbols like exclamation marks.
+The second important syntax used here are 'lookahead' and 'lookbehind' symbols ecoded in "(?='some_text') and "(?<='some_text')".
+Lookaheads (Lookbehinds) assert certain letters after (before) the actual text of interest and are excluded from the match.
+Note that Lookaheads and Lookbehinds are Perl syntax, so the appropriate flag must be set to true, further note that the special characters '^' and '$' encode the beginning or end of a text.
+Certain errors that could happen during the scraping process are intercepted using the `warning` function, returning an object of appropriate type instead of "NULL" that can be intercepted by the caller.
+Since `scrape.html.R` only processes a single url the function `assemble.data` is used to sequentially scrape several urls given by the `url.base` argumet and the locKey contained in the `idx.seq` argument. The function takes several other arguments that can be looked up in the functions docstring.
+
+The script `write_data.R` finally handles the actual data processing, calling `assemble.data` from the script `functions.R`
+The scraped data is written into the data folder (data_web.csv) and merged with the given population data and once more written into the data folder (final_data.csv).
+The following table shows head and tail of the final data:
+```{r, echo = FALSE}
+data
+```
+The structure of the final data is as follows:
+```{r, echo = FALSE}
+str(data)
+```
