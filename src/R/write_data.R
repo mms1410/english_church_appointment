@@ -72,6 +72,8 @@ setkeyv(data.web, c("CCEd_ID", "Year"))
 setkeyv(data.population, c("cced_id", "year"))
 data.merge <-data.population[data.web, nomatch = 0]
 ## factor Year to numeric Year
+data.web$Year <- as.numeric(levels(data.web$Year))[[data.web$Year]]
+fwrite(data.web, file = paste0(path.data, .Platform$file.sep, "data_web.csv"))
 data.merge$year <- as.numeric(levels(data.merge$year))[data.merge$year]
 ## create final data
 data.final <- data.table(cbind(
